@@ -1,61 +1,96 @@
+require 'awesome_print'
+
 PROPERTY_TAX_RATE = 0.015
-home_value = 1_100_000.0
-deposit = 533_000
-#loan_amount = home_value - deposit
-yearly_property_tax = home_value * PROPERTY_TAX_RATE
-monthly_property_tax = yearly_property_tax / 12.0
-monthly_property_tax_adjustment = monthly_property_tax * 0.36
+HOME_VALUE = 1_050_000.0
+HOA = 250
+deposit = 500_000 + 0.03 * HOME_VALUE
+yearly_property_tax = HOME_VALUE * PROPERTY_TAX_RATE
+MONTHLY_PROPERTY_TAX = yearly_property_tax / 12.0
+MONTHLY_PROPERTY_TAX_ADJUSTMENT = MONTHLY_PROPERTY_TAX * 0.36
 
-principal = home_value - deposit
-puts "total amount of loan: #{principal}"
-monthly_interest_rate = 0.04625 / 12
-total_payments = 360
-monthly_mortgage_payment = principal * (monthly_interest_rate * ( 1 + monthly_interest_rate) ** total_payments) /
-  ((1 + monthly_interest_rate) ** total_payments - 1)
-puts "monthly_mortgage_payment: #{monthly_mortgage_payment}"
-monthly_mortgage_and_tax = monthly_mortgage_payment + monthly_property_tax
-puts "monthly_mortgage_and_tax: #{monthly_mortgage_and_tax}"
-puts "savings from property tax writeoff: #{monthly_property_tax_adjustment}"
-puts monthly_mortgage_payment + monthly_property_tax - monthly_property_tax_adjustment
-puts "monthly mortgage payment: #{monthly_mortgage_payment.round}"
+PRINCIPAL = HOME_VALUE - deposit
+puts "total amount of loan: #{PRINCIPAL}"
 
-months_to_payoff_by_monthly_payment = {}
-[250].each do |hoa|
-# [monthly_mortgage_payment, 3500, 4000, 4500, 5000].each do |target_monthly_payment|
-  [4000].each do |target_monthly_payment|
-    running_principal = principal
-    running_value = home_value
-    (30 * 12).times do |month|
-      amounts = {}
-      amounts[:month] = month
-      amounts[:interest] = monthly_interest_rate * running_principal
-      amounts[:principal] = monthly_mortgage_payment - amounts[:interest]
-      amounts[:principal] += (target_monthly_payment - monthly_mortgage_payment - hoa)
-      running_principal -= amounts[:principal]
-      amounts[:property_tax] = monthly_property_tax
-      amounts[:hoa] = hoa
-      amounts[:deductible] = amounts[:interest] + monthly_property_tax
-      amounts[:deduction_savings] = amounts[:deductible] * 0.36
-      amounts[:adjusted_monthly_payment] = target_monthly_payment - amounts[:deduction_savings]
-      amounts[:running_principal] = running_principal
-      amounts[:running_value] = (running_value *= 1.00583) # 1.07 / 12 months
-      amounts[:ownership] = home_value - running_principal
-      amounts[:ownership_percent] = 100.0 * amounts[:ownership].to_f / home_value.to_f
-      amounts[:total_paid] = month * target_monthly_payment + deposit
-      # profit_rate = amounts[:running_value] / home_value
-      # this still doesn't seem right..
-      amounts[:running_profit] = (running_value - amounts[:total_paid]) * amounts[:ownership_percent]
+def monthly_interest_rate(month)
+  if month / 12 < 5
+    0.04125 / 12
+  elsif month / 12 < 10
+    0.06125 / 12
+  elsif month / 12 < 15
+    0.08125 / 12
+  else # lifetime cap of 5% over the initial rate
+    0.09125 / 12
+  end
+end
 
-      puts Hash[amounts.map {|k,v| [k,v.to_i]}]
-      if month == 7 * 12
-        puts " ** 7 years, $#{target_monthly_payment.round(2)}/month, #{amounts.delete(:running_value).round}, HOA: #{hoa.round}"
-        puts Hash[amounts.map {|k,v| [k,v.round(2)]}]
-        puts
-        exit 0
-      end
-      months_to_payoff_by_monthly_payment[target_monthly_payment.round] = month
-      break if running_principal < 0
+TOTAL_PAYMENTS = 360
+
+def monthly_mortgage_payment(month)
+  rate = monthly_interest_rate(month)
+  PRINCIPAL * (rate * ( 1 + rate) ** TOTAL_PAYMENTS) / ((1 + rate) ** TOTAL_PAYMENTS - 1)
+end
+
+def miniumum_monthly_payment(month)
+  monthly_mortgage_payment(month) + MONTHLY_PROPERTY_TAX + HOA
+end
+
+def maybe_month_divider(month)
+  return unless [5, 10, 15, 20, 25, 30].include?(month % 12 == 0 ? month / 12 : nil)
+  puts "\n#{ ?- * 25 } #{month / 12} #{ ?- * 25 }\n"
+end
+
+summary = {}
+[0, 5000, 5250, 5500, 5750, 6000, 6500].each do |target_monthly_payment|
+  running_principal = PRINCIPAL
+  running_interest = 0
+  running_value = HOME_VALUE
+  running_payments = 0
+  (30 * 12).times do |month|
+    maybe_month_divider(month)
+
+    minimum_payment = miniumum_monthly_payment(month)
+    monthly_payment = [minimum_payment, target_monthly_payment].max
+
+    amounts = {}
+    amounts[:month] = month
+    amounts[:monthly_payment] = monthly_payment
+    running_payments += monthly_payment
+
+    amounts[:interest_rate] = monthly_interest_rate(month) * 12
+    amounts[:interest] = monthly_interest_rate(month) * running_principal
+    running_interest += amounts[:interest]
+    amounts[:running_interest] = running_interest
+
+    amounts[:principal] = monthly_payment - amounts[:interest] - MONTHLY_PROPERTY_TAX - HOA
+    running_principal -= amounts[:principal]
+    amounts[:running_principal] = running_principal
+
+    #amounts[:property_tax] = MONTHLY_PROPERTY_TAX
+    #amounts[:hoa] = HOA
+
+    #amounts[:deductible] = amounts[:interest] + MONTHLY_PROPERTY_TAX
+    amounts[:deduction_savings] = (amounts[:interest] + MONTHLY_PROPERTY_TAX) * 0.36
+    #amounts[:adjusted_monthly_payment] = monthly_payment - amounts[:deduction_savings]
+    amounts[:adjusted_monthly_payment] = monthly_payment - (amounts[:interest] + MONTHLY_PROPERTY_TAX) * 0.36
+
+    running_value *= (1 + (0.03 / 12))
+    amounts[:running_value] = running_value
+    #amounts[:ownership] = HOME_VALUE - running_principal
+    amounts[:ownership_percent] = 100.0 * (HOME_VALUE - running_principal) / HOME_VALUE
+    #amounts[:total_paid] = month * monthly_payment + deposit
+
+    puts Hash[amounts.map {|k,v| [k,v.round(3)]}]
+
+    if running_principal <= 0
+      summary[target_monthly_payment.round] = {
+        years: (month / 12.0).round(1),
+        interest: running_interest.round,
+        payments: (deposit + running_payments).round,
+        value: running_value.round,
+        percent_interest: (100.0 * running_interest / running_payments).round(1)
+      }
+      break
     end
   end
 end
-puts months_to_payoff_by_monthly_payment
+ap(summary)
