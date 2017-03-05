@@ -1,7 +1,7 @@
 require 'awesome_print'
 
 PROPERTY_TAX_RATE = 0.015
-HOME_VALUE = 1_050_000.0
+HOME_VALUE = 1_100_000.0
 HOA = 250
 deposit = 500_000 + 0.03 * HOME_VALUE
 yearly_property_tax = HOME_VALUE * PROPERTY_TAX_RATE
@@ -45,6 +45,7 @@ summary = {}
   running_interest = 0
   running_value = HOME_VALUE
   running_payments = 0
+  running_deductions = 0
   (30 * 12).times do |month|
     maybe_month_divider(month)
 
@@ -70,6 +71,7 @@ summary = {}
 
     #amounts[:deductible] = amounts[:interest] + MONTHLY_PROPERTY_TAX
     amounts[:deduction_savings] = (amounts[:interest] + MONTHLY_PROPERTY_TAX) * 0.36
+    running_deductions += amounts[:deduction_savings]
     #amounts[:adjusted_monthly_payment] = monthly_payment - amounts[:deduction_savings]
     amounts[:adjusted_monthly_payment] = monthly_payment - (amounts[:interest] + MONTHLY_PROPERTY_TAX) * 0.36
 
@@ -79,16 +81,20 @@ summary = {}
     amounts[:ownership_percent] = 100.0 * (HOME_VALUE - running_principal) / HOME_VALUE
     #amounts[:total_paid] = month * monthly_payment + deposit
 
-    puts Hash[amounts.map {|k,v| [k,v.round(3)]}]
+    # puts Hash[amounts.map {|k,v| [k,v.round(3)]}]
 
     if running_principal <= 0
-      summary[target_monthly_payment.round] = {
+      key = target_monthly_payment.round
+      summary[key] = {
         years: (month / 12.0).round(1),
         interest: running_interest.round,
         payments: (deposit + running_payments).round,
+        deduction_savings: running_deductions.round,
+        adjusted_payments: (deposit + running_payments - running_deductions).round,
         value: running_value.round,
         percent_interest: (100.0 * running_interest / running_payments).round(1)
       }
+      summary[key][:projected_profit] = summary[key][:value] - summary[key][:adjusted_payments]
       break
     end
   end
