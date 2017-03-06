@@ -67,6 +67,8 @@ class Mortgage
 
       if running_principal <= 0
         summary = {
+          target_monthly_payment: @target_monthly_payment,
+          loan: self.class.name,
           years: (month / 12.0).round(1),
           loan_amount: (@home_value - @deposit).round,
           interest: running_interest.round,
@@ -75,8 +77,9 @@ class Mortgage
           value: running_value.round,
           percent_interest: (100.0 * running_interest / running_payments).round(1)
         }
+        summary[:multiplier] = (summary[:payments] / summary[:loan_amount].to_f).round(2)
         summary[:projected_profit] = summary[:value] - summary[:paid]
-        summary[:deductions] = Hash[deductions.map {|k,v|[k,v.to_i]}]
+        #summary[:deductions] = Hash[deductions.map {|k,v|[k,v.to_i]}]
         summary[:monthly_payments] = monthly_payments
 
         return summary
@@ -151,16 +154,18 @@ class SevenOneMortgage < AdjustableRateMortgage
   end
 end
 
-params = {
-  home_value: 1_100_000,
-  deposit: 533_000,
-  hoa: 240,
-  property_tax_rate: 0.01179,
-  target_monthly_payment: 5000,
-  first_month: Date.new(2017, 5, 1)
-}
+[4500, 5000, 6000].each do |target_monthly_payment|
+  params = {
+    home_value: 1_100_000,
+    deposit: 533_000,
+    hoa: 240,
+    property_tax_rate: 0.01179,
+    target_monthly_payment: target_monthly_payment,
+    first_month: Date.new(2017, 5, 1)
+  }
 
-ap FiveFiveMortgage.new(params).perform
-#ap ThreeOneMortgage.new(params).perform
-#ap FiveOneMortgage.new(params).perform
-#ap SevenOneMortgage.new(params).perform
+  ap FiveFiveMortgage.new(params).perform
+# ap ThreeOneMortgage.new(params).perform
+# ap FiveOneMortgage.new(params).perform
+  ap SevenOneMortgage.new(params).perform
+end
