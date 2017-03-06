@@ -1,12 +1,13 @@
 require 'awesome_print'
+require 'active_support/core_ext/integer/time' # for Numeric#months
 
 #PROPERTY_TAX_RATE = 0.015
 PROPERTY_TAX_RATE = 0.01179
 HOME_VALUE = 1_100_000.0
 HOA = 240
 deposit = 500_000 + 0.03 * HOME_VALUE
-ASSESSED_VALUE = 1957130 * 0.25 # based on disclosure
-yearly_property_tax = ASSESSED_VALUE * PROPERTY_TAX_RATE
+yearly_property_tax = HOME_VALUE * PROPERTY_TAX_RATE
+puts "yearly_property_tax: #{yearly_property_tax}"
 MONTHLY_PROPERTY_TAX = yearly_property_tax / 12.0
 MONTHLY_PROPERTY_TAX_ADJUSTMENT = MONTHLY_PROPERTY_TAX * 0.36
 
@@ -41,18 +42,24 @@ def maybe_month_divider(month)
   puts "\n#{ ?- * 25 } #{month / 12} #{ ?- * 25 }\n"
 end
 
+FIRST_MONTH = Date.new(2017, 4, 1)
+
 summary = {}
-[0, 5000, 5250, 5500, 5750, 6000, 6500].each do |target_monthly_payment|
+[0, 5000, 5500, 6000].each do |target_monthly_payment|
+  deductions = Hash.new(0)
   running_principal = PRINCIPAL
   running_interest = 0
   running_value = HOME_VALUE
   running_payments = 0
   running_deductions = 0
+  monthly_payments = Set.new
   (30 * 12).times do |month|
-    maybe_month_divider(month)
+    date = FIRST_MONTH + month.months
+    # maybe_month_divider(month)
 
     minimum_payment = miniumum_monthly_payment(month)
     monthly_payment = [minimum_payment, target_monthly_payment].max
+    monthly_payments.add(monthly_payment.to_i)
 
     amounts = {}
     amounts[:month] = month
@@ -73,6 +80,7 @@ summary = {}
 
     #amounts[:deductible] = amounts[:interest] + MONTHLY_PROPERTY_TAX
     amounts[:deduction_savings] = (amounts[:interest] + MONTHLY_PROPERTY_TAX) * 0.36
+    deductions[date.year] += amounts[:deduction_savings]
     running_deductions += amounts[:deduction_savings]
     #amounts[:adjusted_monthly_payment] = monthly_payment - amounts[:deduction_savings]
     amounts[:adjusted_monthly_payment] = monthly_payment - (amounts[:interest] + MONTHLY_PROPERTY_TAX) * 0.36
@@ -83,7 +91,7 @@ summary = {}
     amounts[:ownership_percent] = 100.0 * (HOME_VALUE - running_principal) / HOME_VALUE
     #amounts[:total_paid] = month * monthly_payment + deposit
 
-    # puts Hash[amounts.map {|k,v| [k,v.round(3)]}]
+    #puts Hash[amounts.map {|k,v| [k,v.round(3)]}]
 
     if running_principal <= 0
       key = target_monthly_payment.round
@@ -97,6 +105,8 @@ summary = {}
         percent_interest: (100.0 * running_interest / running_payments).round(1)
       }
       summary[key][:projected_profit] = summary[key][:value] - summary[key][:adjusted_payments]
+      summary[key][:deductions] = Hash[deductions.map {|k,v|[k,v.to_i]}]
+      summary[key][:monthly_payments] = monthly_payments
       break
     end
   end
