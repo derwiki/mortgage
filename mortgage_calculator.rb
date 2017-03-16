@@ -79,7 +79,7 @@ class Mortgage
         }
         summary[:multiplier] = (summary[:payments] / summary[:loan_amount].to_f).round(2)
         summary[:projected_profit] = summary[:value] - summary[:paid]
-        #summary[:deductions] = Hash[deductions.map {|k,v|[k,v.to_i]}]
+        summary[:deductions] = Hash[deductions.map {|k,v|[k,v.to_i]}]
         summary[:monthly_payments] = monthly_payments
 
         return summary
