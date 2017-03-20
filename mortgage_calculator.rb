@@ -1,3 +1,5 @@
+require 'byebug'
+require 'csv'
 require 'set'
 require 'awesome_print'
 require 'active_support/core_ext/integer/time' # for Numeric#months
@@ -82,6 +84,9 @@ class Mortgage
         summary[:deductions] = Hash[deductions.map {|k,v|[k,v.to_i]}]
         summary[:monthly_payments] = monthly_payments
 
+        CSV.open('data.csv', 'a+') do |csv|
+          csv << summary.except(:deductions, :monthly_payments).values
+        end
         return summary
       end
     end
@@ -91,13 +96,13 @@ end
 class FiveFiveMortgage < Mortgage
   def monthly_interest_rate(month)
     if month / 12 < 5
-      0.04125 / 12
+      0.04199 / 12
     elsif month / 12 < 10
-      0.06125 / 12
+      0.06199 / 12
     elsif month / 12 < 15
-      0.08125 / 12
+      0.08199 / 12
     else # lifetime cap of 5% over the initial rate
-      0.09125 / 12
+      0.10199 / 12
     end
   end
 end
@@ -126,7 +131,7 @@ end
 
 class ThreeOneMortgage < AdjustableRateMortgage
   def intro_rate
-    0.03875
+    0.04044
   end
 
   def change_year
@@ -136,7 +141,7 @@ end
 
 class FiveOneMortgage < AdjustableRateMortgage
   def intro_rate
-    0.04
+    0.04151
   end
 
   def change_year
@@ -146,7 +151,7 @@ end
 
 class SevenOneMortgage < AdjustableRateMortgage
   def intro_rate
-    0.04375
+    0.04275
   end
 
   def change_year
@@ -154,18 +159,27 @@ class SevenOneMortgage < AdjustableRateMortgage
   end
 end
 
-[4500, 5000, 6000].each do |target_monthly_payment|
+class ThirtyYearMortgage < Mortgage
+  def monthly_interest_rate(_)
+    0.0425 / 12
+  end
+end
+
+#(4250..10000).step(500).each do |target_monthly_payment|
+[5000].each do |target_monthly_payment|
   params = {
-    home_value: 1_100_000,
-    deposit: 533_000,
-    hoa: 240,
+    home_value: 1_250_000,
+    deposit: 641_000,
+#   deposit: 700_000,
+    hoa: 350,
     property_tax_rate: 0.01179,
     target_monthly_payment: target_monthly_payment,
     first_month: Date.new(2017, 5, 1)
   }
 
-  ap FiveFiveMortgage.new(params).perform
-# ap ThreeOneMortgage.new(params).perform
-# ap FiveOneMortgage.new(params).perform
-  ap SevenOneMortgage.new(params).perform
+  #ap FiveFiveMortgage.new(params).perform
+  ap ThirtyYearMortgage.new(params).perform
+  #ap ThreeOneMortgage.new(params).perform
+  #ap FiveOneMortgage.new(params).perform
+  #ap SevenOneMortgage.new(params).perform
 end
