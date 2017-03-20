@@ -84,9 +84,7 @@ class Mortgage
         summary[:deductions] = Hash[deductions.map {|k,v|[k,v.to_i]}]
         summary[:monthly_payments] = monthly_payments
 
-        CSV.open('data.csv', 'a+') do |csv|
-          csv << summary.except(:deductions, :monthly_payments).values
-        end
+        # summary.except(:deductions, :monthly_payments).keys
         return summary
       end
     end
@@ -165,21 +163,27 @@ class ThirtyYearMortgage < Mortgage
   end
 end
 
-#(4250..10000).step(500).each do |target_monthly_payment|
-[5000].each do |target_monthly_payment|
-  params = {
-    home_value: 1_250_000,
-    deposit: 641_000,
-#   deposit: 700_000,
-    hoa: 350,
-    property_tax_rate: 0.01179,
-    target_monthly_payment: target_monthly_payment,
-    first_month: Date.new(2017, 5, 1)
-  }
-
-  #ap FiveFiveMortgage.new(params).perform
-  ap ThirtyYearMortgage.new(params).perform
-  #ap ThreeOneMortgage.new(params).perform
-  #ap FiveOneMortgage.new(params).perform
-  #ap SevenOneMortgage.new(params).perform
+class MortageComparer
+  CLASSES = [ThirtyYearMortgage, FiveFiveMortgage, SevenOneMortgage]
+  def self.perform
+    summary = {}
+    CLASSES.each do |klass|
+      klass_key = klass.to_s.split(' ').first
+      (4000..10000).step(500).each do |target_monthly_payment|
+        params = {
+          home_value: 1_250_000,
+          deposit: 641_000,
+          hoa: 350,
+          property_tax_rate: 0.01179,
+          target_monthly_payment: target_monthly_payment,
+          first_month: Date.new(2017, 5, 1)
+        }
+        summary[klass_key] ||= {}
+        summary[klass_key][target_monthly_payment] = klass.new(params).perform
+      end
+    end
+    summary
+  end
 end
+
+ap MortageComparer.perform
