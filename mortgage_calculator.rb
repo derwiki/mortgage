@@ -8,13 +8,13 @@ class Mortgage
   TOTAL_PAYMENTS = 360
   HOME_VALUE_YEARLY_GROWTH_RATE = 0.04
 
-  def initialize(home_value: , deposit: , hoa: , property_tax_rate: , target_monthly_payment: , first_month: )
+  def initialize(home_value: , deposit: , hoa: , property_tax_rate: , monthly_payment: , first_month: )
     @home_value = home_value
     @deposit = deposit
     @hoa = hoa
     @property_tax_rate = property_tax_rate
     @monthly_property_tax = property_tax_rate / 12.0
-    @target_monthly_payment = target_monthly_payment
+    @monthly_payment = monthly_payment
     @first_month = first_month
   end
 
@@ -42,7 +42,7 @@ class Mortgage
     TOTAL_PAYMENTS.times do |month|
       date = @first_month + month.months
       minimum_payment = miniumum_monthly_payment(month)
-      monthly_payment = [minimum_payment, @target_monthly_payment].max
+      monthly_payment = [minimum_payment, @monthly_payment].max
       monthly_payments[monthly_payment.to_i] += 1
 
       amounts = {}
@@ -69,7 +69,7 @@ class Mortgage
 
       if running_principal <= 0
         summary = {
-          target_monthly_payment: @target_monthly_payment,
+          monthly_payment: @monthly_payment,
           loan: self.class.name,
           years: (month / 12.0).round(1),
           loan_amount: (@home_value - @deposit).round,
@@ -164,26 +164,27 @@ class ThirtyYearMortgage < Mortgage
 end
 
 class MortageComparer
-  CLASSES = [ThirtyYearMortgage, FiveFiveMortgage, SevenOneMortgage]
-  def self.perform
+  # CLASSES = [ThirtyYearMortgage, FiveFiveMortgage, SevenOneMortgage]
+  CLASSES = [ThirtyYearMortgage]
+  def self.perform(params)
     summary = {}
     CLASSES.each do |klass|
       klass_key = klass.to_s.split(' ').first
-      (4000..10000).step(500).each do |target_monthly_payment|
-        params = {
-          home_value: 1_250_000,
-          deposit: 641_000,
-          hoa: 350,
-          property_tax_rate: 0.01179,
-          target_monthly_payment: target_monthly_payment,
-          first_month: Date.new(2017, 5, 1)
-        }
+      (4000..10000).step(500).each do |monthly_payment|
         summary[klass_key] ||= {}
-        summary[klass_key][target_monthly_payment] = klass.new(params).perform
+        summary[klass_key][monthly_payment] =
+          klass.new(params.merge(monthly_payment: monthly_payment)).perform
       end
     end
     summary
   end
 end
 
-ap MortageComparer.perform
+params = {
+  home_value: 1_250_000,
+  deposit: 641_000,
+  hoa: 350,
+  property_tax_rate: 0.01179,
+  first_month: Date.new(2017, 5, 1)
+}
+ap MortageComparer.perform(params)
